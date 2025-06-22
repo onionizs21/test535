@@ -1,0 +1,344 @@
+local whitelistURL = "https://raw.githubusercontent.com/tuzurenard435/tuttuttutwl/refs/heads/main/whitelist.lua"
+local usercolorsURL = "https://raw.githubusercontent.com/tuzurenard435/tuttuttutwl/refs/heads/main/usercolors.lua"
+
+local success1, whitelist = pcall(function()
+    return loadstring(game:HttpGet(whitelistURL, true))()
+end)
+
+local success2, userColors = pcall(function()
+    return loadstring(game:HttpGet(usercolorsURL, true))()
+end)
+
+local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
+local userId = localPlayer.UserId
+
+if not success1 or type(whitelist) ~= "table" then
+    localPlayer:Kick("Failed to load")
+    return
+end
+
+if not whitelist[userId] then
+    localPlayer:Kick("You are not whitelisted.")
+    return
+end
+
+local mainColor = (success2 and userColors[userId])
+
+local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/tuzurenard435/pieppiep93libtest/refs/heads/main/eleriumnew", true))()
+
+local window = library:AddWindow("Silence | Rebirthing", {
+    main_color = mainColor,
+    min_size = Vector2.new(280, 320),
+    can_resize = false,
+})
+
+
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local blockedFrames = {
+    "strengthFrame",
+}
+
+for _, name in ipairs(blockedFrames) do
+    local frame = replicatedStorage:FindFirstChild(name)
+    if frame and frame:IsA("GuiObject") then
+        frame.Visible = false
+    end
+end
+
+replicatedStorage.ChildAdded:Connect(function(child)
+    if table.find(blockedFrames, child.Name) and child:IsA("GuiObject") then
+        child.Visible = false
+    end
+end)
+
+local rebsTab = window:AddTab("Rebirthing")
+rebsTab:Show()
+
+local player = game.Players.LocalPlayer
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local muscleEvent = player:WaitForChild("muscleEvent")
+local leaderstats = player:WaitForChild("leaderstats")
+local rebirthsStat = leaderstats:WaitForChild("Rebirths")
+
+local function formatNumber(number)
+    if number >= 1e15 then
+        return string.format("%.2fQa", number / 1e15)
+    elseif number >= 1e12 then
+        return string.format("%.2fT", number / 1e12)
+    elseif number >= 1e9 then
+        return string.format("%.2fB", number / 1e9)
+    elseif number >= 1e6 then
+        return string.format("%.2fM", number / 1e6)
+    elseif number >= 1e3 then
+        return string.format("%.2fK", number / 1e3)
+    else
+        return tostring(number)
+    end
+end
+
+local timeLabel = rebsTab:AddLabel("0d 0h 0m 0s - Rebirthing Stopped")
+local statslabel2 = rebsTab:AddLabel("Stats:")
+local paceLabel = rebsTab:AddLabel("Rebirth Pace: 0 / Hour | 0 / Day")
+local gainedLabel = rebsTab:AddLabel("Rebirths: 0 | Gained: 0")
+local nothingLabel = rebsTab:AddLabel("")
+local rebslabel = rebsTab:AddLabel("Rebirthing:")
+
+timeLabel.TextSize = 17
+timeLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+statslabel2.TextSize = 20
+gainedLabel.TextSize = 17
+paceLabel.TextSize = 17
+nothingLabel.TextSize = 10
+rebslabel.TextSize = 20
+
+local function unequipPets()
+    for _, folder in pairs(player.petsFolder:GetChildren()) do
+        if folder:IsA("Folder") then
+            for _, pet in pairs(folder:GetChildren()) do
+                replicatedStorage.rEvents.equipPetEvent:FireServer("unequipPet", pet)
+            end
+        end
+    end
+    task.wait(0.1)
+end
+
+local function equipPetsByName(name)
+    unequipPets()
+    task.wait(0.01)
+    for _, pet in pairs(player.petsFolder.Unique:GetChildren()) do
+        if pet.Name == name then
+            replicatedStorage.rEvents.equipPetEvent:FireServer("equipPet", pet)
+        end
+    end
+end
+
+local isRunning = false
+local startTime = 0
+local initialRebirths = 0
+
+local function fastReb()
+    while isRunning do
+        equipPetsByName("Swift Samurai")
+        task.wait(0.4) 
+
+        local rebirths = player.leaderstats.Rebirths.Value
+        local strengthTarget = 5000 + (rebirths * 2550)
+
+        while isRunning and player.leaderstats.Strength.Value < strengthTarget do
+            local repsToDo = player.MembershipType == Enum.MembershipType.Premium and 8 or 14
+            for _ = 1, repsToDo do
+                muscleEvent:FireServer("rep")
+            end
+            task.wait(0.02)
+        end
+
+        if player.leaderstats.Strength.Value >= strengthTarget then
+            equipPetsByName("Tribal Overlord")
+            task.wait(0.25)
+
+            local before = player.leaderstats.Rebirths.Value
+            repeat
+                replicatedStorage.rEvents.rebirthRemote:InvokeServer("rebirthRequest")
+                task.wait(0.05)
+            until player.leaderstats.Rebirths.Value > before
+
+            task.wait(0.5)
+        end
+    end
+end
+
+task.spawn(function()
+    local lastUpdate = 0
+    while true do
+        if isRunning then
+            if startTime == 0 then
+                startTime = tick()
+                initialRebirths = player.leaderstats.Rebirths.Value
+            end
+
+            local currentTime = tick()
+            local elapsed = currentTime - startTime
+            local days = math.floor(elapsed / 86400)
+            local hours = math.floor((elapsed % 86400) / 3600)
+            local minutes = math.floor((elapsed % 3600) / 60)
+            local seconds = math.floor(elapsed % 60)
+
+            timeLabel.Text = string.format("%dd %dh %dm %ds - Rebirthing", days, hours, minutes, seconds)
+            timeLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+
+            local gained = player.leaderstats.Rebirths.Value - initialRebirths
+            gainedLabel.Text = "Rebirths: " .. formatNumber(player.leaderstats.Rebirths.Value) .. " | Gained: " .. formatNumber(gained)
+
+            if lastUpdate == 0 or currentTime - lastUpdate >= 6 then
+                lastUpdate = currentTime
+                local perSec = gained / math.max(elapsed, 1)
+                local perHour = perSec * 3600
+                local perDay = perSec * 86400
+
+                paceLabel.Text = "Rebirth Pace: " .. formatNumber(perHour) .. " / Hour | " .. formatNumber(perDay) .. " / Day"
+            end
+        else
+            timeLabel.Text = "0d 0h 0m 0s - Rebirthing Stopped"
+            timeLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+        end
+        task.wait(0.1)
+    end
+end)
+
+local switch = rebsTab:AddSwitch("Fast Rebirth", function(bool)
+    if bool then
+        isRunning = true
+        startTime = 0
+        fastReb()
+    else
+        isRunning = false
+    end
+end)
+
+rebsTab:AddButton("Jungle Lift",function()
+    local player = game.Players.LocalPlayer
+    local char = player.Character or Player.CharacterAdded:wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    hrp.CFrame = CFrame.new(-8642.396484375, 6.7980651855, 2086.1030273)
+    task.wait(0.2)
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+    task.wait(0.05)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+end)
+
+
+rebsTab:AddButton("Anti Lag", function()
+    local player = game.Players.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+    local lighting = game:GetService("Lighting")
+
+    for _, gui in pairs(playerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") then
+            gui:Destroy()
+        end
+    end
+
+    local function removeTransparentParts(obj)
+        for _, part in pairs(obj:GetDescendants()) do
+            if part:IsA("BasePart") and part.Transparency >= 0.5 then
+                part:Destroy()
+            end
+        end
+    end
+
+    local function removeSounds(obj)
+        for _, s in pairs(obj:GetDescendants()) do
+            if s:IsA("Sound") then
+                s:Stop()
+                s:Destroy()
+            end
+        end
+    end
+
+    local function hideOtherPlayers()
+        for _, p in pairs(game.Players:GetPlayers()) do
+            if p ~= player and p.Character then
+                p.Character:Destroy()
+            end
+        end
+    end
+
+    local function removeNPCs()
+        for _, npc in pairs(workspace:GetChildren()) do
+            if npc:IsA("Model") and npc:FindFirstChildOfClass("Humanoid") and not game.Players:GetPlayerFromCharacter(npc) then
+                npc:Destroy()
+            end
+        end
+    end
+
+    local function darkenSky()
+        for _, v in pairs(lighting:GetChildren()) do
+            if v:IsA("Sky") then
+                v:Destroy()
+            end
+        end
+
+        local darkSky = Instance.new("Sky")
+        darkSky.Name = "DarkSky"
+        darkSky.SkyboxBk = "rbxassetid://0"
+        darkSky.SkyboxDn = "rbxassetid://0"
+        darkSky.SkyboxFt = "rbxassetid://0"
+        darkSky.SkyboxLf = "rbxassetid://0"
+        darkSky.SkyboxRt = "rbxassetid://0"
+        darkSky.SkyboxUp = "rbxassetid://0"
+        darkSky.Parent = lighting
+
+        lighting.Brightness = 0
+        lighting.ClockTime = 0
+        lighting.TimeOfDay = "00:00:00"
+        lighting.OutdoorAmbient = Color3.new(0, 0, 0)
+        lighting.Ambient = Color3.new(0, 0, 0)
+        lighting.FogColor = Color3.new(0, 0, 0)
+        lighting.FogEnd = 100
+
+        task.spawn(function()
+            while true do
+                wait(5)
+                if not lighting:FindFirstChild("DarkSky") then
+                    darkSky:Clone().Parent = lighting
+                end
+                lighting.Brightness = 0
+                lighting.ClockTime = 0
+                lighting.OutdoorAmbient = Color3.new(0, 0, 0)
+                lighting.Ambient = Color3.new(0, 0, 0)
+                lighting.FogColor = Color3.new(0, 0, 0)
+                lighting.FogEnd = 100
+            end
+        end)
+    end
+
+    local function removeParticleEffects()
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") then
+                obj:Destroy()
+            end
+        end
+    end
+
+    local function removeLightSources()
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
+                obj:Destroy()
+            end
+        end
+    end
+
+    removeParticleEffects()
+    removeLightSources()
+    darkenSky()
+end)
+
+local function activateShake()
+    local tool = player.Character:FindFirstChild("Tropical Shake") or player.Backpack:FindFirstChild("Tropical Shake")
+    if tool then
+        muscleEvent:FireServer("tropicalShake", tool)
+    end
+end
+
+local running = false
+
+task.spawn(function()
+    while true do
+        if running then
+            activateShake()
+            task.wait(450)
+        else
+            task.wait(1)
+        end
+    end
+end)
+
+local autoshakeSwitch = rebsTab:AddSwitch("Auto Shake", function(state)
+    running = state
+    if state then
+        activateShake()
+    end
+end)
+autoshakeSwitch:Set(false)
